@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.agenthire.data.models.*
+import kotlinx.coroutines.delay
 import com.example.agenthire.data.repository.HireAgentRepository
 import com.example.agenthire.utils.DocumentProcessor
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -100,6 +101,7 @@ class HireAgentViewModel(
                 
                 // Step 1: Extract text from resume document
                 updateAnalysisProgress("Extracting text from resume...")
+                delay(2000) // Show progress for 2 seconds
                 val textResult = documentProcessor.extractTextFromDocument(currentState.selectedResumeUri!!)
                 if (textResult.isFailure) {
                     throw Exception("Failed to extract text from resume: ${textResult.exceptionOrNull()?.message}")
@@ -108,6 +110,7 @@ class HireAgentViewModel(
                 
                 // Step 2: Parse resume with AI
                 updateAnalysisProgress("Analyzing resume structure and content...")
+                delay(3000) // Show progress for 3 seconds
                 val resumeResult = repository.parseResume(resumeText)
                 if (resumeResult.isFailure) {
                     throw Exception("Failed to parse resume: ${resumeResult.exceptionOrNull()?.message}")
@@ -115,7 +118,8 @@ class HireAgentViewModel(
                 val resumeData = resumeResult.getOrThrow()
                 
                 // Step 3: Parse job description with AI
-                updateAnalysisProgress("Analyzing job requirements...")
+                updateAnalysisProgress("Analyzing job description and requirements...")
+                delay(2500) // Show progress for 2.5 seconds
                 val jobResult = repository.parseJobDescription(currentState.jobDescriptionText.trim())
                 if (jobResult.isFailure) {
                     throw Exception("Failed to parse job description: ${jobResult.exceptionOrNull()?.message}")
@@ -123,11 +127,16 @@ class HireAgentViewModel(
                 val jobDescription = jobResult.getOrThrow()
                 
                 // Step 4: Perform comprehensive candidate analysis
-                updateAnalysisProgress("Matching candidate to job requirements...")
+                updateAnalysisProgress("Matching candidate profile to job requirements...")
+                delay(3500) // Show progress for 3.5 seconds
                 val analysisResult = repository.analyzeCandidateForJob(resumeData, jobDescription)
                 if (analysisResult.isFailure) {
                     throw Exception("Failed to analyze candidate: ${analysisResult.exceptionOrNull()?.message}")
                 }
+                
+                // Step 5: Finalizing report
+                updateAnalysisProgress("Finalizing comprehensive analysis report...")
+                delay(2000) // Show final progress for 2 seconds
                 
                 // Success - show results
                 _analysisState.value = AnalysisState(
