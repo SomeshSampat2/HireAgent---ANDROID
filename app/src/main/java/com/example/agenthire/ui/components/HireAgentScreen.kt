@@ -3,6 +3,8 @@ package com.example.agenthire.ui.components
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -21,11 +24,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.agenthire.data.models.AnalysisState
 import com.example.agenthire.viewmodel.AnalysisStep
 import com.example.agenthire.viewmodel.HireAgentUiState
 import com.example.agenthire.viewmodel.HireAgentViewModel
+import com.example.agenthire.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,93 +41,171 @@ fun HireAgentScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
     
-    Column(
+    // Modern gradient background
+    val backgroundGradient = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.surface,
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+            MaterialTheme.colorScheme.surface
+        )
+    )
+    
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                        MaterialTheme.colorScheme.surface
-                    )
-                )
-            )
+            .background(backgroundGradient)
     ) {
-        // Top App Bar
-        TopAppBar(
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Work,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Column {
-                        Text(
-                            text = "HireAgent",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "AI-Powered Hiring Assistant",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Modern App Bar with Gradient
+            ModernTopAppBar(
+                currentStep = uiState.currentStep,
+                onNewAnalysis = { viewModel.startNewAnalysis() }
+            )
+            
+            // Animated Content Transition
+            AnimatedContent(
+                targetState = uiState.currentStep,
+                transitionSpec = {
+                    slideInHorizontally(
+                        initialOffsetX = { if (targetState.ordinal > initialState.ordinal) 300 else -300 },
+                        animationSpec = tween(400, easing = EaseOutCubic)
+                    ) + fadeIn(animationSpec = tween(400)) togetherWith
+                    slideOutHorizontally(
+                        targetOffsetX = { if (targetState.ordinal > initialState.ordinal) -300 else 300 },
+                        animationSpec = tween(400, easing = EaseInCubic)
+                    ) + fadeOut(animationSpec = tween(400))
+                },
+                modifier = Modifier.weight(1f),
+                label = "screen_transition"
+            ) { step ->
+                when (step) {
+                    AnalysisStep.INPUT -> {
+                        SlideInContent(visible = true) {
+                            ModernInputStep(
+                                uiState = uiState,
+                                onResumeSelected = viewModel::onResumeSelected,
+                                onJobDescriptionChanged = viewModel::onJobDescriptionChanged,
+                                onStartAnalysis = viewModel::startAnalysis,
+                                onClearResume = viewModel::clearResume,
+                                onClearJobDescription = viewModel::clearJobDescription,
+                                canStartAnalysis = viewModel.canStartAnalysis(),
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                    AnalysisStep.ANALYZING -> {
+                        SlideInContent(visible = true) {
+                            ModernAnalyzingStep(
+                                progressMessage = analysisState.progressMessage,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                    AnalysisStep.RESULTS -> {
+                        analysisState.analysisResult?.let { result ->
+                            SlideInContent(visible = true) {
+                                ResultsStep(
+                                    analysisResult = result,
+                                    onNewAnalysis = viewModel::startNewAnalysis,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        } ?: run {
+                            analysisState.error?.let { errorMessage ->
+                                SlideInContent(visible = true) {
+                                    ModernErrorStep(
+                                        error = errorMessage,
+                                        onRetry = { viewModel.startNewAnalysis() },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
-            },
-            actions = {
-                if (uiState.currentStep == AnalysisStep.RESULTS) {
-                    IconButton(onClick = { viewModel.startNewAnalysis() }) {
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModernTopAppBar(
+    currentStep: AnalysisStep,
+    onNewAnalysis: () -> Unit
+) {
+    // Gradient background for app bar
+    val appBarGradient = Brush.horizontalGradient(
+        colors = listOf(Primary60, Secondary60)
+    )
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(appBarGradient)
+            .statusBarsPadding()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // App Title with Icon
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Color.White.copy(alpha = 0.2f),
+                            RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Psychology,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = Color.White
+                    )
+                }
+                
+                Column {
+                    Text(
+                        text = "HireAgent",
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                    )
+                    Text(
+                        text = "AI-Powered Hiring Assistant",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    )
+                }
+            }
+            
+            // Action Button
+            if (currentStep == AnalysisStep.RESULTS) {
+                ScaleInContent(visible = true) {
+                    ModernFloatingActionButton(
+                        onClick = onNewAnalysis,
+                        modifier = Modifier.size(48.dp),
+                        containerColor = Color.White.copy(alpha = 0.2f),
+                        contentColor = Color.White
+                    ) {
                         Icon(
                             Icons.Default.Refresh,
                             contentDescription = "New Analysis",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-            )
-        )
-        
-        // Main Content
-        when (uiState.currentStep) {
-            AnalysisStep.INPUT -> {
-                InputStep(
-                    uiState = uiState,
-                    onResumeSelected = viewModel::onResumeSelected,
-                    onJobDescriptionChanged = viewModel::onJobDescriptionChanged,
-                    onStartAnalysis = viewModel::startAnalysis,
-                    onClearResume = viewModel::clearResume,
-                    onClearJobDescription = viewModel::clearJobDescription,
-                    canStartAnalysis = viewModel.canStartAnalysis(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            AnalysisStep.ANALYZING -> {
-                AnalyzingStep(
-                    progressMessage = analysisState.progressMessage,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            AnalysisStep.RESULTS -> {
-                analysisState.analysisResult?.let { result ->
-                    ResultsStep(
-                        analysisResult = result,
-                        onNewAnalysis = viewModel::startNewAnalysis,
-                        modifier = Modifier.weight(1f)
-                    )
-                } ?: run {
-                    analysisState.error?.let { errorMessage ->
-                        ErrorStep(
-                            error = errorMessage,
-                            onRetry = { viewModel.startNewAnalysis() },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -132,9 +215,9 @@ fun HireAgentScreen(
 }
 
 @Composable
-private fun InputStep(
+private fun ModernInputStep(
     uiState: HireAgentUiState,
-    onResumeSelected: (Uri) -> Unit,
+    onResumeSelected: (android.net.Uri) -> Unit,
     onJobDescriptionChanged: (String) -> Unit,
     onStartAnalysis: () -> Unit,
     onClearResume: () -> Unit,
@@ -154,39 +237,21 @@ private fun InputStep(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(28.dp)
     ) {
-        // Progress Indicator
-        StepProgressIndicator(
-            currentStep = 1,
-            totalSteps = 3,
-            stepTitles = listOf("Input", "Analysis", "Results")
-        )
-        
-        // Resume Upload Section
-        ResumeUploadCard(
-            uiState = uiState,
-            onSelectFile = { filePickerLauncher.launch("*/*") },
-            onClearFile = onClearResume
-        )
-        
-        // Job Description Section
-        JobDescriptionCard(
-            uiState = uiState,
-            onJobDescriptionChanged = onJobDescriptionChanged,
-            onClear = onClearJobDescription
-        )
-        
-        // Analysis Button
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = if (canStartAnalysis) 
-                    MaterialTheme.colorScheme.primaryContainer 
-                else 
-                    MaterialTheme.colorScheme.surfaceVariant
-            )
+        // Hero Section
+        GradientBackground(
+            gradient = Brush.radialGradient(
+                colors = listOf(
+                    Primary60.copy(alpha = 0.1f),
+                    Secondary60.copy(alpha = 0.05f),
+                    Color.Transparent
+                ),
+                radius = 800f
+            ),
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -194,138 +259,160 @@ private fun InputStep(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Icon(
-                    Icons.Default.Analytics,
+                    Icons.Default.FindInPage,
                     contentDescription = null,
-                    modifier = Modifier.size(32.dp),
-                    tint = if (canStartAnalysis) 
-                        MaterialTheme.colorScheme.primary 
-                    else 
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    modifier = Modifier.size(40.dp),
+                    tint = Primary60
                 )
                 
                 Text(
-                    text = "Ready for Analysis",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (canStartAnalysis) 
-                        MaterialTheme.colorScheme.onPrimaryContainer 
-                    else 
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    text = "Smart Candidate Analysis",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
                 )
                 
                 Text(
-                    text = if (canStartAnalysis) {
-                        "All requirements met. Start comprehensive candidate analysis."
-                    } else {
-                        "Please upload a resume and provide a detailed job description to continue."
-                    },
+                    text = "Upload resume and job description for AI-powered analysis",
                     style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    color = if (canStartAnalysis) 
-                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    else 
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
                 )
-                
-                Button(
-                    onClick = onStartAnalysis,
-                    enabled = canStartAnalysis,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "Start AI Analysis",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
             }
         }
         
+        // Progress Indicator
+        ModernStepProgressIndicator(
+            currentStep = 1,
+            totalSteps = 3,
+            stepTitles = listOf("Input", "Analysis", "Results")
+        )
+        
+        // Resume Upload Section
+        SlideInContent(visible = true) {
+            ModernResumeUploadCard(
+                uiState = uiState,
+                onSelectFile = { filePickerLauncher.launch("*/*") },
+                onClearFile = onClearResume
+            )
+        }
+        
+        // Job Description Section
+        SlideInContent(visible = true) {
+            ModernJobDescriptionCard(
+                uiState = uiState,
+                onJobDescriptionChanged = onJobDescriptionChanged,
+                onClear = onClearJobDescription
+            )
+        }
+        
+        // Analysis Button
+        ScaleInContent(visible = canStartAnalysis) {
+            ModernAnalysisButton(
+                onClick = onStartAnalysis,
+                enabled = canStartAnalysis,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        
         // Requirements Section
-        RequirementsCard()
+        SlideInContent(visible = true) {
+            ModernRequirementsCard()
+        }
     }
 }
 
 @Composable
-private fun AnalyzingStep(
+private fun ModernAnalyzingStep(
     progressMessage: String = "",
     modifier: Modifier = Modifier
 ) {
+    
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Card(
+        GlassmorphismCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(24.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            shape = RoundedCornerShape(32.dp)
         ) {
             Column(
-                modifier = Modifier.padding(32.dp),
+                modifier = Modifier.padding(40.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                verticalArrangement = Arrangement.spacedBy(32.dp)
             ) {
                 // Progress Indicator
-                StepProgressIndicator(
+                ModernStepProgressIndicator(
                     currentStep = 2,
                     totalSteps = 3,
                     stepTitles = listOf("Input", "Analysis", "Results")
                 )
                 
-                CircularProgressIndicator(
-                    modifier = Modifier.size(64.dp),
-                    strokeWidth = 6.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
+
                 
                 Text(
                     text = "AI Analysis in Progress",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 
                 if (progressMessage.isNotEmpty()) {
                     Text(
                         text = progressMessage,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = Primary60,
                         fontWeight = FontWeight.Medium
                     )
                 } else {
                     Text(
-                        text = "Our AI is analyzing the candidate's qualifications, experience, and fit for the role. This may take a few moments.",
+                        text = "Our AI is analyzing the candidate's qualifications, experience, and fit for the role. This comprehensive analysis includes skills matching, experience evaluation, and hiring recommendations.",
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 
-                // Analysis Steps
+                // Analysis Steps with Animation
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    AnalysisStepItem("Extracting text from resume", progressMessage.contains("Extracting"))
-                    AnalysisStepItem("Analyzing resume structure", progressMessage.contains("resume structure"))
-                    AnalysisStepItem("Analyzing job requirements", progressMessage.contains("job requirements"))
-                    AnalysisStepItem("Matching candidate to job", progressMessage.contains("Matching"))
+                    ModernAnalysisStepItem(
+                        text = "Extracting text from resume",
+                        completed = progressMessage.contains("Analyzing resume") || 
+                                   progressMessage.contains("Analyzing job") || 
+                                   progressMessage.contains("Matching candidate") ||
+                                   progressMessage.contains("Finalizing"),
+                        active = progressMessage.contains("Extracting")
+                    )
+                    ModernAnalysisStepItem(
+                        text = "Analyzing resume structure and content",
+                        completed = progressMessage.contains("Analyzing job") || 
+                                   progressMessage.contains("Matching candidate") ||
+                                   progressMessage.contains("Finalizing"),
+                        active = progressMessage.contains("Analyzing resume")
+                    )
+                    ModernAnalysisStepItem(
+                        text = "Analyzing job description and requirements",
+                        completed = progressMessage.contains("Matching candidate") ||
+                                   progressMessage.contains("Finalizing"),
+                        active = progressMessage.contains("Analyzing job")
+                    )
+                    ModernAnalysisStepItem(
+                        text = "Matching candidate profile to job requirements",
+                        completed = progressMessage.contains("Finalizing"),
+                        active = progressMessage.contains("Matching candidate")
+                    )
+                    ModernAnalysisStepItem(
+                        text = "Finalizing comprehensive analysis report",
+                        completed = false,
+                        active = progressMessage.contains("Finalizing")
+                    )
                 }
             }
         }
@@ -333,36 +420,67 @@ private fun AnalyzingStep(
 }
 
 @Composable
-private fun AnalysisStepItem(
+private fun ModernAnalysisStepItem(
     text: String,
-    completed: Boolean
+    completed: Boolean,
+    active: Boolean
 ) {
+    val animatedColor by animateColorAsState(
+        targetValue = when {
+            completed -> Success
+            active -> Primary60
+            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        },
+        animationSpec = tween(300),
+        label = "step_color"
+    )
+    
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Icon(
-            if (completed) Icons.Default.CheckCircle else Icons.Default.Schedule,
-            contentDescription = null,
-            tint = if (completed) 
-                MaterialTheme.colorScheme.primary 
-            else 
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-            modifier = Modifier.size(20.dp)
-        )
+        Box(
+            modifier = Modifier.size(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            when {
+                completed -> {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Success,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                active -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = Primary60
+                    )
+                }
+                else -> {
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = animatedColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+        
         Text(
             text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (completed) 
-                MaterialTheme.colorScheme.onSurface 
-            else 
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            style = MaterialTheme.typography.bodyLarge,
+            color = animatedColor,
+            fontWeight = if (active || completed) FontWeight.Medium else FontWeight.Normal
         )
     }
 }
 
 @Composable
-private fun ErrorStep(
+private fun ModernErrorStep(
     error: String,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
@@ -371,47 +489,76 @@ private fun ErrorStep(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Card(
+        ModernCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer
-            )
+                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
+            ),
+            shape = RoundedCornerShape(32.dp)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(40.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                Icon(
-                    Icons.Default.Error,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.error
-                )
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            MaterialTheme.colorScheme.errorContainer,
+                            RoundedCornerShape(40.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Error,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
                 
                 Text(
                     text = "Analysis Failed",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 
                 Text(
                     text = error,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
                 Button(
                     onClick = onRetry,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
-                    )
+                    ),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text("Try Again")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Try Again",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
         }
