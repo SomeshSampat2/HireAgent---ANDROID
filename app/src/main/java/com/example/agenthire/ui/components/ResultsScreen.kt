@@ -1,5 +1,8 @@
 package com.example.agenthire.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.agenthire.data.models.CandidateAnalysis
+import com.example.agenthire.ui.theme.*
 import kotlin.math.roundToInt
 
 @Composable
@@ -43,9 +47,9 @@ fun ResultsStep(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            StepProgressIndicator(
+            ModernStepProgressIndicator(
                 currentStep = 3,
                 totalSteps = 3,
                 stepTitles = listOf("Input", "Analysis", "Results"),
@@ -119,7 +123,8 @@ private fun JobInfoCard(analysisResult: CandidateAnalysis) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -172,7 +177,8 @@ private fun OverallScoreCard(analysisResult: CandidateAnalysis) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = getScoreCardColor(analysisResult.overallScore)
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
@@ -228,94 +234,166 @@ private fun OverallScoreCard(analysisResult: CandidateAnalysis) {
 
 @Composable
 private fun ScoreBreakdownCard(analysisResult: CandidateAnalysis) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
+    GlassmorphismCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text(
-                text = "Score Breakdown",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            // Header with gradient icon
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Primary60, Secondary60)
+                            ),
+                            RoundedCornerShape(16.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Analytics,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                }
+                
+                Text(
+                    text = "Score Breakdown",
+                    style = CustomTextStyles.SectionHeader,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
             
-            ScoreBarItem(
+            ModernScoreBarItem(
                 label = "Skills Match",
                 score = analysisResult.scoreBreakdown.skillsMatch,
-                icon = Icons.Default.Star
+                icon = Icons.Default.Star,
+                gradient = Brush.linearGradient(listOf(Primary60, Primary80))
             )
             
-            ScoreBarItem(
+            ModernScoreBarItem(
                 label = "Experience Relevance",
                 score = analysisResult.scoreBreakdown.experienceRelevance,
-                icon = Icons.Default.Timeline
+                icon = Icons.Default.Timeline,
+                gradient = Brush.linearGradient(listOf(Secondary60, Secondary80))
             )
             
-            ScoreBarItem(
+            ModernScoreBarItem(
                 label = "Education Fit",
                 score = analysisResult.scoreBreakdown.educationFit,
-                icon = Icons.Default.School
+                icon = Icons.Default.School,
+                gradient = Brush.linearGradient(listOf(Success, SuccessLight))
             )
             
-            ScoreBarItem(
+            ModernScoreBarItem(
                 label = "Job Alignment",
                 score = analysisResult.scoreBreakdown.jobSpecificAlignment,
-                icon = Icons.Default.TrendingUp
+                icon = Icons.Default.TrendingUp,
+                gradient = Brush.linearGradient(listOf(Warning, WarningLight))
             )
         }
     }
 }
 
 @Composable
-private fun ScoreBarItem(
+private fun ModernScoreBarItem(
     label: String,
     score: Double,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    gradient: Brush
 ) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    val animatedProgress by animateFloatAsState(
+        targetValue = (score / 100).toFloat(),
+        animationSpec = tween(1000, easing = EaseOutCubic),
+        label = "score_progress"
+    )
+    
+    ModernCard(
+        elevation = 0.dp,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+        ),
+        shape = RoundedCornerShape(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = getScoreColor(score)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(gradient, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.White
+                        )
+                    }
+                    
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                
                 Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
+                    text = "${score.roundToInt()}%",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             
+            // Modern progress bar with gradient
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(12.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        RoundedCornerShape(6.dp)
+                    )
+                    .clip(RoundedCornerShape(6.dp))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(animatedProgress)
+                        .background(gradient, RoundedCornerShape(6.dp))
+                )
+            }
+            
+            // Score description
             Text(
-                text = "${score.roundToInt()}%",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = getScoreColor(score)
+                text = getScoreDescription(score),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
             )
         }
-        
-        LinearProgressIndicator(
-            progress = { (score / 100).toFloat() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp)),
-            color = getScoreColor(score),
-            trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-        )
     }
 }
 
@@ -325,7 +403,8 @@ private fun QuickSummaryCard(analysisResult: CandidateAnalysis) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -448,53 +527,125 @@ private fun SkillsMatchCard(
     color: Color,
     icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
+    GlassmorphismCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = color
-                )
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(color, RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                }
+                
+                Column {
+                    Text(
+                        text = title,
+                        style = CustomTextStyles.CardTitle,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${skills.size} skills",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             
             if (skills.isEmpty()) {
-                Text(
-                    text = "None identified",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(8.dp)
-                )
-            } else {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ModernCard(
+                    elevation = 0.dp,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    items(skills) { skill ->
-                        AssistChip(
-                            onClick = { },
-                            label = { Text(skill) },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = color.copy(alpha = 0.2f),
-                                labelColor = color
-                            )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "None identified",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
+            } else {
+                // Skills grid using FlowRow-like layout
+                val chunkedSkills = skills.chunked(3) // 3 skills per row
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    chunkedSkills.forEach { rowSkills ->
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            rowSkills.forEach { skill ->
+                                ModernSkillChip(
+                                    skill = skill,
+                                    color = color,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            // Fill remaining space if row is not complete
+                            repeat(3 - rowSkills.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun ModernSkillChip(
+    skill: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    ModernCard(
+        elevation = 0.dp,
+        colors = CardDefaults.cardColors(
+            containerColor = color.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = skill,
+                style = MaterialTheme.typography.labelLarge,
+                color = color,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -514,22 +665,67 @@ private fun ExperienceTab(analysisResult: CandidateAnalysis) {
 
 @Composable
 private fun ExperienceOverviewCard(experienceMatch: com.example.agenthire.data.models.ExperienceMatch) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
+    GlassmorphismCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text(
-                text = "Experience Analysis",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            // Header with icon
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Secondary60, Primary60)
+                            ),
+                            RoundedCornerShape(16.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.WorkHistory,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                }
+                
+                Text(
+                    text = "Experience Analysis",
+                    style = CustomTextStyles.SectionHeader,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
             
-            InfoRow("Years of Experience", experienceMatch.relevantExperienceYears)
-            InfoRow("Experience Level Fit", experienceMatch.experienceLevelFit)
-            InfoRow("Industry Relevance", experienceMatch.industryRelevance)
+            // Experience metrics with better layout
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                ModernInfoCard(
+                    label = "Years of Experience",
+                    value = experienceMatch.relevantExperienceYears,
+                    color = Primary60
+                )
+                
+                ModernInfoCard(
+                    label = "Experience Level Fit",
+                    value = experienceMatch.experienceLevelFit,
+                    color = Secondary60
+                )
+                
+                ModernInfoCard(
+                    label = "Industry Relevance",
+                    value = experienceMatch.industryRelevance,
+                    color = Success
+                )
+            }
             
             if (experienceMatch.matchingResponsibilities.isNotEmpty()) {
                 Column(
@@ -566,18 +762,42 @@ private fun ExperienceOverviewCard(experienceMatch: com.example.agenthire.data.m
 
 @Composable
 private fun EducationAnalysisCard(educationAnalysis: com.example.agenthire.data.models.EducationAnalysis) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
+    GlassmorphismCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text(
-                text = "Education Analysis",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            // Header with icon
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Success,
+                            RoundedCornerShape(16.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.School,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                }
+                
+                Text(
+                    text = "Education Analysis",
+                    style = CustomTextStyles.SectionHeader,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
             
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -626,47 +846,74 @@ private fun InterviewTab(analysisResult: CandidateAnalysis) {
 
 @Composable
 private fun InterviewFocusCard(focusAreas: List<String>) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
+    GlassmorphismCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Icon(
-                    Icons.Default.QuestionAnswer,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Primary60, Secondary60)
+                            ),
+                            RoundedCornerShape(16.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.QuestionAnswer,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                }
+                
                 Text(
                     text = "Interview Focus Areas",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    style = CustomTextStyles.SectionHeader,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             
-            focusAreas.forEach { area ->
-                Row(
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                            .padding(top = 8.dp)
-                    )
-                    Text(
-                        text = area,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                focusAreas.forEach { area ->
+                    ModernCard(
+                        elevation = 0.dp,
+                        colors = CardDefaults.cardColors(
+                            containerColor = Primary60.copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(18.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(Primary60, CircleShape)
+                            )
+                            Text(
+                                text = area,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Primary60,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -675,46 +922,73 @@ private fun InterviewFocusCard(focusAreas: List<String>) {
 
 @Composable
 private fun OnboardingCard(recommendations: List<String>) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
+    GlassmorphismCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Icon(
-                    Icons.Default.School,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.secondary
-                )
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Secondary60,
+                            RoundedCornerShape(16.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.School,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                }
+                
                 Text(
                     text = "Onboarding Recommendations",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    style = CustomTextStyles.SectionHeader,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             
-            recommendations.forEach { recommendation ->
-                Row(
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Lightbulb,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.secondary
-                    )
-                    Text(
-                        text = recommendation,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
-                    )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                recommendations.forEach { recommendation ->
+                    ModernCard(
+                        elevation = 0.dp,
+                        colors = CardDefaults.cardColors(
+                            containerColor = Secondary60.copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(18.dp),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Lightbulb,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp),
+                                tint = Secondary60
+                            )
+                            Text(
+                                text = recommendation,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Secondary60,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -723,38 +997,59 @@ private fun OnboardingCard(recommendations: List<String>) {
 
 @Composable
 private fun SalaryAssessmentCard(assessment: String) {
-    Card(
+    GlassmorphismCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
-        )
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Icon(
-                    Icons.Default.AttachMoney,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.tertiary
-                )
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Success, SuccessLight)
+                            ),
+                            RoundedCornerShape(16.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.AttachMoney,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                }
+                
                 Text(
                     text = "Salary Fit Assessment",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    style = CustomTextStyles.SectionHeader,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             
-            Text(
-                text = assessment,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onTertiaryContainer
-            )
+            ModernCard(
+                elevation = 0.dp,
+                colors = CardDefaults.cardColors(
+                    containerColor = Success.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    text = assessment,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Success,
+                    modifier = Modifier.padding(20.dp)
+                )
+            }
         }
     }
 }
@@ -777,7 +1072,8 @@ private fun HiringDecisionCard(recommendation: com.example.agenthire.data.models
         colors = CardDefaults.cardColors(
             containerColor = decisionColor.copy(alpha = 0.1f)
         ),
-        border = BorderStroke(2.dp, decisionColor)
+        border = BorderStroke(2.dp, decisionColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
@@ -801,7 +1097,8 @@ private fun HiringDecisionCard(recommendation: com.example.agenthire.data.models
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = decisionColor
-                )
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Text(
                     text = recommendation.decision,
@@ -832,22 +1129,35 @@ private fun HiringDecisionCard(recommendation: com.example.agenthire.data.models
 
 // Helper functions
 @Composable
-private fun InfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+private fun ModernInfoCard(
+    label: String,
+    value: String,
+    color: Color
+) {
+    ModernCard(
+        elevation = 0.dp,
+        colors = CardDefaults.cardColors(
+            containerColor = color.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Text(
-            text = "$label:",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold
-        )
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = color
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 
