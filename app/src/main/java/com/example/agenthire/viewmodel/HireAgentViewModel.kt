@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 
 class HireAgentViewModel(
     private val context: Context,
@@ -22,39 +24,106 @@ class HireAgentViewModel(
     private val documentProcessor = DocumentProcessor(context)
     
     // UI State
-    private val _uiState = MutableStateFlow(HireAgentUiState())
-    val uiState: StateFlow<HireAgentUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(MultiResumeUiState())
+    val uiState: StateFlow<MultiResumeUiState> = _uiState.asStateFlow()
     
-    // Analysis State
-    private val _analysisState = MutableStateFlow(AnalysisState())
-    val analysisState: StateFlow<AnalysisState> = _analysisState.asStateFlow()
+    // Batch Analysis State
+    private val _batchAnalysisState = MutableStateFlow(BatchAnalysisState())
+    val batchAnalysisState: StateFlow<BatchAnalysisState> = _batchAnalysisState.asStateFlow()
+    
+    companion object {
+        const val MIN_RESUMES = 1
+        const val MAX_RESUMES = 10
+        const val MIN_JOB_DESCRIPTION_LENGTH = 50
+    }
     
     /**
-     * Handle resume file selection - ONLY validates file, no processing
+     * Handle multiple resume file selection
      */
-    fun onResumeSelected(uri: Uri) {
-        // Only validate file format and size, don't process yet
-        if (!documentProcessor.isSupportedDocument(uri)) {
-            _uiState.value = _uiState.value.copy(
-                resumeError = "Unsupported file format. Please select PDF, DOCX, DOC, or TXT files."
+    fun onResumesSelected(uris: List<Uri>) {
+        val currentState = _uiState.value
+        
+        // Validate number of files
+        if (uris.isEmpty()) {
+            _uiState.value = currentState.copy(
+                resumeError = "Please select at least one resume file"
             )
             return
+        }
+        
+        // Get currently selected files and check total count
+        val existingFiles = currentState.selectedResumeFiles
+        val totalFilesAfterAdding = existingFiles.size + uris.size
+        
+        if (totalFilesAfterAdding > MAX_RESUMES) {
+            _uiState.value = currentState.copy(
+                resumeError = "Maximum $MAX_RESUMES resumes allowed. You have ${existingFiles.size} files and tried to add ${uris.size} more."
+            )
+            return
+        }
+        
+        val newResumeFiles = mutableListOf<ResumeFile>()
+        var hasError = false
+        var errorMessage = ""
+        
+        // Validate each NEW file and check for duplicates
+        for (uri in uris) {
+            // Check if file is already selected
+            if (existingFiles.any { it.uri == uri }) {
+                continue // Skip duplicate files
+            }
+            
+            if (!documentProcessor.isSupportedDocument(uri)) {
+                hasError = true
+                errorMessage = "Unsupported file format detected. Please select PDF, DOCX, DOC, or TXT files only."
+                break
         }
         
         val fileSize = documentProcessor.getFileSize(uri)
         if (fileSize > DocumentProcessor.MAX_FILE_SIZE) {
-            _uiState.value = _uiState.value.copy(
-                resumeError = "File size too large. Maximum size is 10MB."
+                hasError = true
+                errorMessage = "One or more files exceed the 10MB limit."
+                break
+            }
+            
+            val fileName = getFileNameFromUri(uri)
+            newResumeFiles.add(
+                ResumeFile(
+                    uri = uri,
+                    fileName = fileName,
+                    fileSize = fileSize
+                )
+            )
+        }
+        
+        if (hasError) {
+            _uiState.value = currentState.copy(
+                resumeError = errorMessage
             )
             return
         }
         
-        // File is valid - store it for later processing
-        _uiState.value = _uiState.value.copy(
-            selectedResumeUri = uri,
-            resumeFileName = getFileNameFromUri(uri),
+        // Combine existing files with new files
+        val allFiles = existingFiles + newResumeFiles
+        
+        _uiState.value = currentState.copy(
+            selectedResumeFiles = allFiles,
             resumeError = null,
-            resumeValidated = true
+            resumesValidated = allFiles.isNotEmpty()
+        )
+    }
+    
+    /**
+     * Remove a specific resume file
+     */
+    fun removeResumeFile(resumeFile: ResumeFile) {
+        val currentState = _uiState.value
+        val updatedFiles = currentState.selectedResumeFiles.filterNot { it.uri == resumeFile.uri }
+        
+        _uiState.value = currentState.copy(
+            selectedResumeFiles = updatedFiles,
+            resumesValidated = updatedFiles.isNotEmpty(),
+            resumeError = if (updatedFiles.isEmpty()) "Please select at least one resume file" else null
         )
     }
     
@@ -63,119 +132,205 @@ class HireAgentViewModel(
      */
     fun onJobDescriptionChanged(jobDescription: String) {
         val trimmedText = jobDescription.trim()
-        val isValid = trimmedText.length >= 50
+        val isValid = trimmedText.length >= MIN_JOB_DESCRIPTION_LENGTH
         
         _uiState.value = _uiState.value.copy(
             jobDescriptionText = jobDescription,
             jobDescriptionError = if (!isValid && trimmedText.isNotEmpty()) {
-                "Please provide a more detailed job description (minimum 50 characters)"
+                "Please provide a more detailed job description (minimum $MIN_JOB_DESCRIPTION_LENGTH characters)"
             } else null,
             jobDescriptionValidated = isValid
         )
     }
     
     /**
-     * Start comprehensive analysis - ALL processing happens here
+     * Start batch analysis of all resumes
      */
-    fun startAnalysis() {
+    fun startBatchAnalysis() {
         val currentState = _uiState.value
         
         // Validate inputs
-        if (currentState.selectedResumeUri == null) {
-            _uiState.value = currentState.copy(resumeError = "Please select a resume file")
+        if (currentState.selectedResumeFiles.isEmpty()) {
+            _uiState.value = currentState.copy(resumeError = "Please select at least one resume file")
             return
         }
         
         if (!currentState.jobDescriptionValidated) {
             _uiState.value = currentState.copy(
-                jobDescriptionError = "Please provide a detailed job description (minimum 50 characters)"
+                jobDescriptionError = "Please provide a detailed job description (minimum $MIN_JOB_DESCRIPTION_LENGTH characters)"
             )
             return
         }
         
         viewModelScope.launch {
             try {
-                // Start analysis
-                _analysisState.value = AnalysisState(isAnalyzing = true)
-                _uiState.value = currentState.copy(currentStep = AnalysisStep.ANALYZING)
+                // Start batch analysis
+                _batchAnalysisState.value = BatchAnalysisState(
+                    isAnalyzing = true,
+                    totalCount = currentState.selectedResumeFiles.size
+                )
+                _uiState.value = currentState.copy(currentStep = MultiAnalysisStep.ANALYZING)
                 
-                // Step 1: Extract text from resume document
-                updateAnalysisProgress("Extracting text from resume...")
-                delay(2000) // Show progress for 2 seconds
-                val textResult = documentProcessor.extractTextFromDocument(currentState.selectedResumeUri!!)
-                if (textResult.isFailure) {
-                    throw Exception("Failed to extract text from resume: ${textResult.exceptionOrNull()?.message}")
-                }
-                val resumeText = textResult.getOrThrow()
+                // Step 1: Parse job description first
+                updateBatchProgress("Analyzing job description and requirements...", 0, 0f)
+                delay(2000)
                 
-                // Step 2: Parse resume with AI
-                updateAnalysisProgress("Analyzing resume structure and content...")
-                delay(3000) // Show progress for 3 seconds
-                val resumeResult = repository.parseResume(resumeText)
-                if (resumeResult.isFailure) {
-                    throw Exception("Failed to parse resume: ${resumeResult.exceptionOrNull()?.message}")
-                }
-                val resumeData = resumeResult.getOrThrow()
-                
-                // Step 3: Parse job description with AI
-                updateAnalysisProgress("Analyzing job description and requirements...")
-                delay(2500) // Show progress for 2.5 seconds
                 val jobResult = repository.parseJobDescription(currentState.jobDescriptionText.trim())
                 if (jobResult.isFailure) {
                     throw Exception("Failed to parse job description: ${jobResult.exceptionOrNull()?.message}")
                 }
                 val jobDescription = jobResult.getOrThrow()
                 
-                // Step 4: Perform comprehensive candidate analysis
-                updateAnalysisProgress("Matching candidate profile to job requirements...")
-                delay(3500) // Show progress for 3.5 seconds
-                val analysisResult = repository.analyzeCandidateForJob(resumeData, jobDescription)
-                if (analysisResult.isFailure) {
-                    throw Exception("Failed to analyze candidate: ${analysisResult.exceptionOrNull()?.message}")
+                // Step 2: Process all resumes in parallel for text extraction
+                updateBatchProgress("Extracting text from all resume files...", 0, 10f)
+                delay(1500)
+                
+                val processedResumes = mutableListOf<ResumeFile>()
+                
+                // Extract text from all resumes
+                for ((index, resumeFile) in currentState.selectedResumeFiles.withIndex()) {
+                    updateBatchProgress(
+                        "Extracting text from ${resumeFile.fileName}...", 
+                        index + 1, 
+                        10f + (20f * (index + 1) / currentState.selectedResumeFiles.size)
+                    )
+                    
+                    val textResult = documentProcessor.extractTextFromDocument(resumeFile.uri)
+                    if (textResult.isFailure) {
+                        processedResumes.add(
+                            resumeFile.copy(
+                                error = "Failed to extract text: ${textResult.exceptionOrNull()?.message}"
+                            )
+                        )
+                    } else {
+                        processedResumes.add(
+                            resumeFile.copy(
+                                extractedText = textResult.getOrThrow(),
+                                isProcessed = true
+                            )
+                        )
+                    }
+                    delay(500) // Small delay for progress visibility
                 }
                 
-                // Step 5: Finalizing report
-                updateAnalysisProgress("Finalizing comprehensive analysis report...")
-                delay(2000) // Show final progress for 2 seconds
+                // Step 3: Parse resumes with AI (sequential to avoid rate limits)
+                val candidateAnalyses = mutableListOf<CandidateAnalysis>()
+                val successfulResumes = processedResumes.filter { it.isProcessed && it.extractedText != null }
                 
-                // Success - show results
-                _analysisState.value = AnalysisState(
+                for ((index, resumeFile) in successfulResumes.withIndex()) {
+                    updateBatchProgress(
+                        "Analyzing resume structure for ${resumeFile.fileName}...", 
+                        index + 1, 
+                        30f + (30f * (index + 1) / successfulResumes.size)
+                    )
+                    delay(1000)
+                    
+                    val resumeResult = repository.parseResume(resumeFile.extractedText!!)
+                    if (resumeResult.isFailure) {
+                        continue // Skip this resume but continue with others
+                    }
+                    val resumeData = resumeResult.getOrThrow()
+                    
+                    // Step 4: Perform candidate analysis
+                    updateBatchProgress(
+                        "Matching ${resumeData.name} to job requirements...", 
+                        index + 1, 
+                        60f + (30f * (index + 1) / successfulResumes.size)
+                    )
+                    delay(1500)
+                    
+                val analysisResult = repository.analyzeCandidateForJob(resumeData, jobDescription)
+                    if (analysisResult.isSuccess) {
+                        candidateAnalyses.add(analysisResult.getOrThrow())
+                    }
+                }
+                
+                // Step 5: Rank candidates by overall score
+                updateBatchProgress("Ranking candidates by overall match score...", candidateAnalyses.size, 95f)
+                delay(1000)
+                
+                val rankedCandidates = candidateAnalyses
+                    .sortedByDescending { it.overallScore }
+                    .mapIndexed { index, analysis ->
+                        val resumeFile = processedResumes.find { it.extractedText != null && 
+                                                                 analysis.resumeData.name.contains(getFileNameFromUri(it.uri).take(10), ignoreCase = true) }
+                            ?: processedResumes.first()
+                        
+                        RankedCandidate(
+                            resumeFile = resumeFile,
+                            candidateAnalysis = analysis,
+                            rank = index + 1,
+                            overallScore = analysis.overallScore
+                        )
+                    }
+                
+                // Final step
+                updateBatchProgress("Finalizing analysis report...", rankedCandidates.size, 100f)
+                delay(1000)
+                
+                // Success - show ranked results
+                _batchAnalysisState.value = BatchAnalysisState(
                     isAnalyzing = false,
-                    analysisResult = analysisResult.getOrThrow()
+                    processedCount = rankedCandidates.size,
+                    totalCount = currentState.selectedResumeFiles.size,
+                    rankedResults = rankedCandidates
                 )
-                _uiState.value = _uiState.value.copy(currentStep = AnalysisStep.RESULTS)
+                _uiState.value = _uiState.value.copy(currentStep = MultiAnalysisStep.RANKED_RESULTS)
                 
             } catch (e: Exception) {
                 // Error occurred
-                _analysisState.value = AnalysisState(
+                _batchAnalysisState.value = BatchAnalysisState(
                     isAnalyzing = false,
-                    error = e.message ?: "Analysis failed. Please try again."
+                    error = e.message ?: "Batch analysis failed. Please try again."
                 )
-                _uiState.value = _uiState.value.copy(currentStep = AnalysisStep.INPUT)
+                _uiState.value = _uiState.value.copy(currentStep = MultiAnalysisStep.INPUT)
             }
         }
     }
     
-    private fun updateAnalysisProgress(message: String) {
-        _analysisState.value = _analysisState.value.copy(progressMessage = message)
+    /**
+     * Show detailed analysis for a specific candidate
+     */
+    fun showCandidateDetail(rankedCandidate: RankedCandidate) {
+        _uiState.value = _uiState.value.copy(
+            currentStep = MultiAnalysisStep.DETAILED_VIEW,
+            selectedCandidate = rankedCandidate
+        )
+    }
+    
+    /**
+     * Go back to ranked results
+     */
+    fun backToRankedResults() {
+        _uiState.value = _uiState.value.copy(
+            currentStep = MultiAnalysisStep.RANKED_RESULTS,
+            selectedCandidate = null
+        )
+    }
+    
+    private fun updateBatchProgress(message: String, processed: Int, percentage: Float) {
+        _batchAnalysisState.value = _batchAnalysisState.value.copy(
+            currentProcessing = message,
+            processedCount = processed,
+            progressPercentage = percentage / 100f
+        )
     }
     
     /**
      * Reset to start a new analysis
      */
     fun startNewAnalysis() {
-        _uiState.value = HireAgentUiState()
-        _analysisState.value = AnalysisState()
+        _uiState.value = MultiResumeUiState()
+        _batchAnalysisState.value = BatchAnalysisState()
     }
     
     /**
-     * Clear resume selection
+     * Clear all resume selections
      */
-    fun clearResume() {
+    fun clearAllResumes() {
         _uiState.value = _uiState.value.copy(
-            selectedResumeUri = null,
-            resumeFileName = null,
-            resumeValidated = false,
+            selectedResumeFiles = emptyList(),
+            resumesValidated = false,
             resumeError = null
         )
     }
@@ -192,13 +347,14 @@ class HireAgentViewModel(
     }
     
     /**
-     * Check if analysis can be started
+     * Check if batch analysis can be started
      */
     fun canStartAnalysis(): Boolean {
         val state = _uiState.value
-        return state.resumeValidated && 
+        return state.resumesValidated && 
                state.jobDescriptionValidated && 
-               !_analysisState.value.isAnalyzing
+               !_batchAnalysisState.value.isAnalyzing &&
+               state.selectedResumeFiles.isNotEmpty()
     }
     
     private fun getFileNameFromUri(uri: Uri): String {
@@ -209,16 +365,34 @@ class HireAgentViewModel(
                 if (displayNameIndex >= 0) {
                     it.getString(displayNameIndex)
                 } else {
-                    "Selected file"
+                    "Resume File"
                 }
             } else {
-                "Selected file"
+                "Resume File"
             }
-        } ?: "Selected file"
+        } ?: "Resume File"
     }
 }
 
-// UI State Model
+// NEW UI State Model for Multiple Resumes
+data class MultiResumeUiState(
+    val currentStep: MultiAnalysisStep = MultiAnalysisStep.INPUT,
+    
+    // Resume state
+    val selectedResumeFiles: List<ResumeFile> = emptyList(),
+    val resumesValidated: Boolean = false,
+    val resumeError: String? = null,
+    
+    // Job description state
+    val jobDescriptionText: String = "",
+    val jobDescriptionValidated: Boolean = false,
+    val jobDescriptionError: String? = null,
+    
+    // Selected candidate for detailed view
+    val selectedCandidate: RankedCandidate? = null
+)
+
+// Keep the old models for backward compatibility if needed
 data class HireAgentUiState(
     val currentStep: AnalysisStep = AnalysisStep.INPUT,
     
@@ -232,14 +406,6 @@ data class HireAgentUiState(
     val jobDescriptionText: String = "",
     val jobDescriptionValidated: Boolean = false,
     val jobDescriptionError: String? = null
-)
-
-// Analysis State Model
-data class AnalysisState(
-    val isAnalyzing: Boolean = false,
-    val progressMessage: String = "",
-    val analysisResult: CandidateAnalysis? = null,
-    val error: String? = null
 )
 
 enum class AnalysisStep {

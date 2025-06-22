@@ -22,6 +22,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.agenthire.ui.theme.*
 import com.example.agenthire.viewmodel.HireAgentUiState
+import com.example.agenthire.viewmodel.MultiResumeUiState
+import com.example.agenthire.data.models.ResumeFile
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.unit.sp
+import android.net.Uri
 
 /**
  * Modern Progress Indicator with animations
@@ -666,7 +674,7 @@ fun ModernAnalysisButton(
             }
             
             Text(
-                text = if (enabled) "Ready for AI Analysis" else "Complete Requirements",
+                text = if (enabled) "Ready for Batch AI Analysis" else "Complete Requirements",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -675,9 +683,9 @@ fun ModernAnalysisButton(
             
             Text(
                 text = if (enabled) {
-                    "All requirements met. Start comprehensive candidate analysis with AI-powered insights, scoring, and hiring recommendations."
+                    "All requirements met. Start comprehensive multi-candidate analysis with AI-powered insights, ranking, and hiring recommendations."
                 } else {
-                    "Please upload a resume and provide a detailed job description to continue with the analysis."
+                    "Please upload resume files and provide a detailed job description to continue with the analysis."
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
@@ -713,7 +721,7 @@ fun ModernAnalysisButton(
                             tint = if (enabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Start AI Analysis",
+                            text = "Start Batch Analysis",
                             style = CustomTextStyles.ButtonText,
                             color = if (enabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -826,6 +834,675 @@ private fun ModernRequirementItem(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+/**
+ * Multi-Resume Analysis Button showing resume count
+ */
+@Composable
+fun MultiResumeAnalysisButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    resumeCount: Int,
+    modifier: Modifier = Modifier
+) {
+    val buttonGradient = Brush.linearGradient(
+        colors = if (enabled) {
+            listOf(Primary60, Secondary60)
+        } else {
+            listOf(
+                MaterialTheme.colorScheme.surfaceVariant,
+                MaterialTheme.colorScheme.surfaceVariant
+            )
+        }
+    )
+    
+    val animatedElevation by animateDpAsState(
+        targetValue = 0.dp,
+        animationSpec = tween(300),
+        label = "button_elevation"
+    )
+    
+    GlassmorphismCard(
+        modifier = modifier,
+        shape = RoundedCornerShape(28.dp),
+        backgroundColor = Color.Transparent
+    ) {
+        Column(
+            modifier = Modifier.padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            // Animated icon with resume count
+            Box(
+                modifier = Modifier.size(80.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (enabled) {
+                    PulsingLoadingIndicator(
+                        size = 80.dp,
+                        color = Primary60.copy(alpha = 0.2f)
+                    )
+                }
+                
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(
+                            if (enabled) buttonGradient else Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Psychology,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = if (enabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
+                // Resume count badge
+                if (enabled && resumeCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 8.dp, y = (-8).dp)
+                            .size(24.dp)
+                            .background(
+                                MaterialTheme.colorScheme.error,
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = resumeCount.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+            
+            Text(
+                text = if (enabled) {
+                    if (resumeCount > 1) "Ready for Batch AI Analysis" else "Ready for AI Analysis"
+                } else {
+                    "Complete Requirements"
+                },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            
+            Text(
+                text = if (enabled) {
+                    if (resumeCount > 1) {
+                        "All requirements met. Start comprehensive analysis of $resumeCount candidates with AI-powered insights, ranking, and hiring recommendations."
+                    } else {
+                        "All requirements met. Start comprehensive candidate analysis with AI-powered insights, scoring, and hiring recommendations."
+                    }
+                } else {
+                    "Please upload resume files and provide a detailed job description to continue with the analysis."
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            
+            Button(
+                onClick = onClick,
+                enabled = enabled,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(buttonGradient, RoundedCornerShape(20.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = if (enabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (resumeCount > 1) {
+                                "Analyze $resumeCount Resumes"
+                            } else {
+                                "Start AI Analysis"
+                            },
+                            style = CustomTextStyles.ButtonText,
+                            color = if (enabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Multi-Resume Input Step with support for multiple file selection
+ */
+@Composable
+fun MultiResumeInputStep(
+    uiState: MultiResumeUiState,
+    onResumesSelected: (List<Uri>) -> Unit,
+    onJobDescriptionChanged: (String) -> Unit,
+    onStartAnalysis: () -> Unit,
+    onClearResumes: () -> Unit,
+    onClearJobDescription: () -> Unit,
+    onRemoveResumeFile: (ResumeFile) -> Unit,
+    canStartAnalysis: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    
+    // Multi-file launcher
+    val multipleFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            onResumesSelected(uris)
+        }
+    }
+    
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        item {
+            // Progress Indicator
+            ModernStepProgressIndicator(
+                currentStep = 1,
+                totalSteps = 3,
+                stepTitles = listOf("Input", "Analysis", "Results")
+            )
+        }
+        
+        item {
+            // Multiple Resume Upload Card
+            MultiResumeUploadCard(
+                uiState = uiState,
+                onSelectFiles = { multipleFileLauncher.launch("*/*") },
+                onClearFiles = onClearResumes,
+                onRemoveFile = onRemoveResumeFile,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        
+        item {
+            // Job Description Input
+            ModernJobDescriptionCard(
+                uiState = uiState,
+                onJobDescriptionChanged = onJobDescriptionChanged,
+                onClearJobDescription = onClearJobDescription,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        
+        item {
+            // Start Analysis Button - Always visible
+            MultiResumeAnalysisButton(
+                onClick = onStartAnalysis,
+                enabled = canStartAnalysis,
+                resumeCount = uiState.selectedResumeFiles.size,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+/**
+ * Multi-Resume Upload Card with file list display
+ */
+@Composable
+fun MultiResumeUploadCard(
+    uiState: MultiResumeUiState,
+    onSelectFiles: () -> Unit,
+    onClearFiles: () -> Unit,
+    onRemoveFile: (ResumeFile) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    GlassmorphismCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            // Header with icon and title
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Primary60, Secondary60)
+                            ),
+                            RoundedCornerShape(16.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Description,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                }
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Resume Upload",
+                        style = CustomTextStyles.SectionHeader,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Upload 1-10 resumes for batch analysis",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
+                // Status indicator
+                AnimatedVisibility(
+                    visible = uiState.resumesValidated && uiState.selectedResumeFiles.isNotEmpty(),
+                    enter = scaleIn() + fadeIn(),
+                    exit = scaleOut() + fadeOut()
+                ) {
+                    Badge(
+                        containerColor = Success,
+                        contentColor = Color.White
+                    ) {
+                        Text(
+                            text = "${uiState.selectedResumeFiles.size}",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            
+            if (uiState.selectedResumeFiles.isEmpty()) {
+                // Upload area
+                ModernCard(
+                    onClick = onSelectFiles,
+                    elevation = 0.dp,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.CloudUpload,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Select Resume Files",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "PDF, DOCX, DOC, TXT • Max 10MB each",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                // File list
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Selected Files (${uiState.selectedResumeFiles.size}/10)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (uiState.selectedResumeFiles.size < 10) {
+                                TextButton(onClick = onSelectFiles) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Add More")
+                                }
+                            } else {
+                                Text(
+                                    text = "Maximum reached",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                            
+                            TextButton(onClick = onClearFiles) {
+                                Icon(
+                                    Icons.Default.Clear,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Clear All")
+                            }
+                        }
+                    }
+                    
+                    // File list
+                    uiState.selectedResumeFiles.forEach { resumeFile ->
+                        ResumeFileItem(
+                            resumeFile = resumeFile,
+                            onRemove = { onRemoveFile(resumeFile) }
+                        )
+                    }
+                }
+            }
+            
+            // Error message
+            AnimatedVisibility(
+                visible = !uiState.resumeError.isNullOrEmpty(),
+                enter = slideInVertically() + fadeIn(),
+                exit = slideOutVertically() + fadeOut()
+            ) {
+                uiState.resumeError?.let { error ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Error,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Individual Resume File Item
+ */
+@Composable
+fun ResumeFileItem(
+    resumeFile: ResumeFile,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                // File type icon
+                val fileIcon = when {
+                    resumeFile.fileName.endsWith(".pdf", ignoreCase = true) -> Icons.Default.PictureAsPdf
+                    resumeFile.fileName.endsWith(".docx", ignoreCase = true) || 
+                    resumeFile.fileName.endsWith(".doc", ignoreCase = true) -> Icons.Default.Description
+                    else -> Icons.Default.TextSnippet
+                }
+                
+                Icon(
+                    fileIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = resumeFile.fileName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${(resumeFile.fileSize / 1024).toInt()} KB",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            // Remove button
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Remove file",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Modern Job Description Card (updated for multi-resume)
+ */
+@Composable
+fun ModernJobDescriptionCard(
+    uiState: MultiResumeUiState,
+    onJobDescriptionChanged: (String) -> Unit,
+    onClearJobDescription: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    GlassmorphismCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Secondary60, Primary60)
+                            ),
+                            RoundedCornerShape(16.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Work,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                }
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Job Description",
+                        style = CustomTextStyles.SectionHeader,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Describe the role requirements and qualifications",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
+                // Status indicator
+                AnimatedVisibility(
+                    visible = uiState.jobDescriptionValidated,
+                    enter = scaleIn() + fadeIn(),
+                    exit = scaleOut() + fadeOut()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(Success, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Validated",
+                            modifier = Modifier.size(18.dp),
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+            
+            // Text field
+            OutlinedTextField(
+                value = uiState.jobDescriptionText,
+                onValueChange = onJobDescriptionChanged,
+                label = { Text("Job Description") },
+                placeholder = { Text("Enter detailed job description, requirements, and qualifications...") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                shape = RoundedCornerShape(16.dp),
+                isError = !uiState.jobDescriptionError.isNullOrEmpty(),
+                trailingIcon = {
+                    if (uiState.jobDescriptionText.isNotEmpty()) {
+                        IconButton(onClick = onClearJobDescription) {
+                            Icon(
+                                Icons.Default.Clear,
+                                contentDescription = "Clear",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            )
+            
+            // Character count and error
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Error message
+                AnimatedVisibility(
+                    visible = !uiState.jobDescriptionError.isNullOrEmpty(),
+                    enter = slideInVertically() + fadeIn(),
+                    exit = slideOutVertically() + fadeOut()
+                ) {
+                    uiState.jobDescriptionError?.let { error ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Error,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = error,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.weight(1f))
+                
+                // Character count
+                Text(
+                    text = "${uiState.jobDescriptionText.length}/50+ chars",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (uiState.jobDescriptionText.length >= 50) {
+                        Success
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
         }
     }
 } 
