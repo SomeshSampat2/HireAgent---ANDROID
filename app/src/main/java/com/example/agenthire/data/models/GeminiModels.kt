@@ -164,3 +164,59 @@ data class AnalysisState(
     val analysisResult: CandidateAnalysis? = null,
     val error: String? = null
 ) 
+
+// NEW MODELS FOR MULTIPLE RESUME SUPPORT
+
+// Resume file information
+data class ResumeFile(
+    val uri: android.net.Uri,
+    val fileName: String,
+    val fileSize: Long,
+    val isProcessed: Boolean = false,
+    val extractedText: String? = null,
+    val resumeData: ResumeData? = null,
+    val error: String? = null
+)
+
+// Ranked candidate result
+data class RankedCandidate(
+    val resumeFile: ResumeFile,
+    val candidateAnalysis: CandidateAnalysis,
+    val rank: Int,
+    val overallScore: Double
+)
+
+// Batch analysis state
+data class BatchAnalysisState(
+    val isAnalyzing: Boolean = false,
+    val currentProcessing: String = "",
+    val progressPercentage: Float = 0f,
+    val processedCount: Int = 0,
+    val totalCount: Int = 0,
+    val rankedResults: List<RankedCandidate> = emptyList(),
+    val error: String? = null
+)
+
+// Multiple resume analysis result
+data class MultipleResumeAnalysisResult(
+    val jobDescription: JobDescription,
+    val rankedCandidates: List<RankedCandidate>,
+    val totalProcessed: Int,
+    val analysisTimestamp: Long = System.currentTimeMillis()
+)
+
+// Analysis step enum for multiple resumes
+enum class MultiAnalysisStep {
+    INPUT,
+    ANALYZING,
+    RANKED_RESULTS,
+    DETAILED_VIEW
+}
+
+// Analysis progress info
+data class AnalysisProgress(
+    val currentStep: String,
+    val currentResumeIndex: Int,
+    val totalResumes: Int,
+    val progressPercentage: Float
+) 

@@ -26,10 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.agenthire.data.models.AnalysisState
-import com.example.agenthire.viewmodel.AnalysisStep
-import com.example.agenthire.viewmodel.HireAgentUiState
-import com.example.agenthire.viewmodel.HireAgentViewModel
+import com.example.agenthire.data.models.*
+import com.example.agenthire.viewmodel.*
 import com.example.agenthire.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,7 +37,7 @@ fun HireAgentScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val analysisState by viewModel.analysisState.collectAsStateWithLifecycle()
+    val batchAnalysisState by viewModel.batchAnalysisState.collectAsStateWithLifecycle()
     
     // Modern gradient background
     val backgroundGradient = Brush.verticalGradient(
@@ -81,39 +79,56 @@ fun HireAgentScreen(
                 label = "screen_transition"
             ) { step ->
                 when (step) {
-                    AnalysisStep.INPUT -> {
+                    MultiAnalysisStep.INPUT -> {
                         SlideInContent(visible = true) {
-                            ModernInputStep(
+                            MultiResumeInputStep(
                                 uiState = uiState,
-                                onResumeSelected = viewModel::onResumeSelected,
+                                onResumesSelected = viewModel::onResumesSelected,
                                 onJobDescriptionChanged = viewModel::onJobDescriptionChanged,
-                                onStartAnalysis = viewModel::startAnalysis,
-                                onClearResume = viewModel::clearResume,
+                                onStartAnalysis = viewModel::startBatchAnalysis,
+                                onClearResumes = viewModel::clearAllResumes,
                                 onClearJobDescription = viewModel::clearJobDescription,
-                                canStartAnalysis = viewModel.canStartAnalysis(),
+                                onRemoveResumeFile = viewModel::removeResumeFile,
+                                canStartAnalysis = uiState.resumesValidated && 
+                                                 uiState.jobDescriptionValidated && 
+                                                 !batchAnalysisState.isAnalyzing &&
+                                                 uiState.selectedResumeFiles.isNotEmpty(),
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
-                    AnalysisStep.ANALYZING -> {
+                    MultiAnalysisStep.ANALYZING -> {
                         SlideInContent(visible = true) {
-                            ModernAnalyzingStep(
-                                progressMessage = analysisState.progressMessage,
+                            ModernBatchAnalyzingStep(
+                                batchAnalysisState = batchAnalysisState,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
-                    AnalysisStep.RESULTS -> {
-                        analysisState.analysisResult?.let { result ->
+                    MultiAnalysisStep.RANKED_RESULTS -> {
+                        batchAnalysisState.rankedResults.let { results ->
                             SlideInContent(visible = true) {
-                                ResultsStep(
-                                    analysisResult = result,
+                                RankedResultsScreen(
+                                    rankedCandidates = results,
+                                    onCandidateClick = viewModel::showCandidateDetail,
+                                    onNewAnalysis = viewModel::startNewAnalysis,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+                    }
+                    MultiAnalysisStep.DETAILED_VIEW -> {
+                        uiState.selectedCandidate?.let { candidate ->
+                            SlideInContent(visible = true) {
+                                CandidateDetailScreen(
+                                    rankedCandidate = candidate,
+                                    onBack = viewModel::backToRankedResults,
                                     onNewAnalysis = viewModel::startNewAnalysis,
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
                         } ?: run {
-                            analysisState.error?.let { errorMessage ->
+                            batchAnalysisState.error?.let { errorMessage ->
                                 SlideInContent(visible = true) {
                                     ModernErrorStep(
                                         error = errorMessage,
@@ -133,7 +148,7 @@ fun HireAgentScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModernTopAppBar(
-    currentStep: AnalysisStep,
+    currentStep: MultiAnalysisStep,
     onNewAnalysis: () -> Unit
 ) {
     // Gradient background for app bar
@@ -194,7 +209,7 @@ private fun ModernTopAppBar(
             }
             
             // Action Button
-            if (currentStep == AnalysisStep.RESULTS) {
+            if (currentStep == MultiAnalysisStep.RANKED_RESULTS || currentStep == MultiAnalysisStep.DETAILED_VIEW) {
                 ScaleInContent(visible = true) {
                     ModernFloatingActionButton(
                         onClick = onNewAnalysis,
